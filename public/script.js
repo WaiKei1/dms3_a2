@@ -1,156 +1,236 @@
-import p5 from "https://cdn.jsdelivr.net/npm/p5@1.11.3/+esm";
+// p5 file and p5.min.js are already loaded inside the HTML file
+// My idea is to show the mycelial cycle of a fungus
+// The cycle = scatter → fracture → reform (looping endlessly)
 
 const sketch = (p) => {
+  //array to store spore object (dots)
   let spores = [];
-  let mode = "scatter"; // Change to mode instead of state
-  let fusePairs = []; // Array to track fused spores
 
+  //the default mode when the sketch starts
+  let mode = "scatter";
+
+  //variables to store the sound effects for each mode
+  let soundScatter, soundFracture, soundReform;
+
+  //used to check if audio context has been started
+  let audioStarted = false;
+
+  // tracks whether the user has clicked to begin
+  let interactionStarted = false;
+
+  //preload sound files before anything starts
   p.preload = () => {
-    // preload function definition goes here (if needed)
+    soundScatter = p.loadSound("music/1.wav"); //scatter sound
+    soundFracture = p.loadSound("music/2.wav"); //fracture sound
+    soundReform = p.loadSound("music/3.wav"); //reform sound
   };
 
+  //setup runs once when the sketch loads
   p.setup = () => {
+    //create fullscreen canvas
     p.createCanvas(innerWidth, innerHeight);
 
-    // Generate 20 spores at the center of the canvas
-    for (let i = 0; i < 150; i++) {
+    //create 50 spores at center of canvas
+    for (let i = 0; i < 50; i++) {
       spores.push(new Spore(p.width / 2, p.height / 2));
     }
   };
 
+  //draw function runs every frame
   p.draw = () => {
-    p.background(20, 30, 20, 25); // Background with some trailing effect
+    //semi-transparent background to creates motion trail effect
+    //to track the movement of each spores
+    p.background(20, 30, 20, 25);
 
-    // Update and display spores based on the current mode
+    //check if the user clicked to begin interaction
+    //go through each spore one by one
     for (let spore of spores) {
-      spore.update();
+      //if the user has clicked to start
+      //let the spores move
+      if (interactionStarted) {
+        // handle the movement of spore
+        spore.update();
+      }
+
+      // display spore
       spore.display();
     }
 
-    if (mode === "fuse") {
-      handleFuseMode();
-    } else if (mode === "fracture") {
-      handleFractureMode();
-    } else if (mode === "reform") {
-      handleReformMode();
-    }
-  };
+    // if the interaction has started
+    // check which mode it's in
+    if (interactionStarted) {
+      // show the fracture effect
+      if (mode === "fracture") {
+        handleFractureMode();
 
-  // Handle mouse press for interaction
-  p.mousePressed = () => {
-    if (mode === "scatter") {
-      mode = "fuse"; // After scatter, switch to fuse mode
-      for (let spore of spores) {
-        spore.angle = p.random(p.TWO_PI);
-        spore.speed = p.random(2, 5);
+        // show the reform behavior
+      } else if (mode === "reform") {
+        handleReformMode();
       }
-    } else if (mode === "fuse") {
-      mode = "fracture"; // Switch to fracture mode
-    } else if (mode === "fracture") {
-      mode = "reform"; // Switch to reform mode
-    } else if (mode === "reform") {
-      mode = "scatter"; // Go back to scatter mode
+    }
+
+    // include the word to guide user
+    // "click to begin" words will appear on landing page
+    // if the user hasn’t clicked yet,
+    // show “Click to Begin”
+    if (!interactionStarted) {
+      //set the colour of the text to white
+      p.fill(255);
+
+      //set the text display at the center of canva
+      p.textAlign(p.CENTER, p.CENTER);
+
+      //set the text size into 24
+      p.textSize(24);
+
+      //center the text and move it slightly above the spores
+      p.text("Click to Begin", p.width / 2, p.height / 2 - 100);
     }
   };
 
-  // Handle Fuse Mode: Spore fusion when close enough
-  function handleFuseMode() {
+  //runs when the user clicks on the canvas
+  p.mousePressed = () => {
+    //the audioStarted = false innitially
+    //check if audio played
+    if (!audioStarted) {
+      //A REQUIRED FUNCTION in p5.js
+      //that enables audio context after a user gesture (click/tap)
+      //only run this once to start the audio
+      p.userStartAudio().then(() => {
+        //play the scatter sound and loop it
+        soundScatter.loop();
+
+        //ensure the audio and interaction has been initialized
+        //so it wont run again
+        audioStarted = true;
+        interactionStarted = true;
+      });
+
+      //exits the function after it start (so it wont overlap)
+      return;
+    }
+
+    //stop all current sounds before switching
+    soundScatter.stop();
+    soundFracture.stop();
+    soundReform.stop();
+
+    //cycle modes with sound
+    if (mode === "scatter") {
+      mode = "fracture";
+      soundFracture.loop();
+    } else if (mode === "fracture") {
+      mode = "reform";
+      soundReform.loop();
+    } else if (mode === "reform") {
+      mode = "scatter";
+      soundScatter.loop();
+    }
+  };
+
+  //set what happens in fracture mode
+  function handleFractureMode() {
+    // check every unique pair of spores
     for (let i = 0; i < spores.length; i++) {
       for (let j = i + 1; j < spores.length; j++) {
+        //calculate the distance between two spores
         let d = p.dist(spores[i].x, spores[i].y, spores[j].x, spores[j].y);
+
+        //if the spores are closer than 100 pixels
         if (d < 100) {
-          // Draw lines between spores within range
-          p.stroke(255, 200, 200);
+          //draw a semi-transparent gray line to connect them
+          p.stroke(100, 100, 100, 50);
           p.line(spores[i].x, spores[i].y, spores[j].x, spores[j].y);
-
-          // Gradually move spores together
-          spores[i].x = p.lerp(spores[i].x, spores[j].x, 0.01);
-          spores[i].y = p.lerp(spores[i].y, spores[j].y, 0.01);
-          spores[j].x = p.lerp(spores[j].x, spores[i].x, 0.01);
-          spores[j].y = p.lerp(spores[j].y, spores[i].y, 0.01);
-
-          // Store the fused pairs
-          fusePairs.push([spores[i], spores[j]]);
         }
       }
     }
-  }
 
-  // Handle Fracture Mode: Break lines and repel spores
-  function handleFractureMode() {
-    for (let pair of fusePairs) {
-      let spore1 = pair[0];
-      let spore2 = pair[1];
-      p.stroke(100, 100, 100, 50); // Ghost lines
-      p.line(spore1.x, spore1.y, spore2.x, spore2.y);
-    }
-
-    // Repel spores randomly
+    //apply chaotic motion
+    //moves each spore randomly to simulate chaos/fracture
     for (let spore of spores) {
       spore.x += p.random(-5, 5);
       spore.y += p.random(-5, 5);
     }
   }
 
-  // Handle Reform Mode: Slowly reconnect spores
+  //set what happens in reform mode
   function handleReformMode() {
-    for (let pair of fusePairs) {
-      let spore1 = pair[0];
-      let spore2 = pair[1];
-      p.stroke(255, 100, 100);
-      p.line(spore1.x, spore1.y, spore2.x, spore2.y);
+    //same with the previous one
+    //scan through each pair of spores
+    for (let i = 0; i < spores.length; i++) {
+      for (let j = i + 1; j < spores.length; j++) {
+        //calculate the distance between two spores
+        let d = p.dist(spores[i].x, spores[i].y, spores[j].x, spores[j].y);
 
-      // Slowly move spores back to their initial fused positions
-      spore1.x = p.lerp(spore1.x, spore2.x, 0.01);
-      spore1.y = p.lerp(spore1.y, spore2.y, 0.01);
-      spore2.x = p.lerp(spore2.x, spore1.x, 0.01);
-      spore2.y = p.lerp(spore2.y, spore1.y, 0.01);
+        //if the distance is close than 100
+        if (d < 100) {
+          //draw a red line between them
+          p.stroke(255, 100, 100);
+          p.line(spores[i].x, spores[i].y, spores[j].x, spores[j].y);
+
+          //move spores closer together using lerp
+          spores[i].x = p.lerp(spores[i].x, spores[j].x, 0.01);
+          spores[i].y = p.lerp(spores[i].y, spores[j].y, 0.01);
+          spores[j].x = p.lerp(spores[j].x, spores[i].x, 0.01);
+          spores[j].y = p.lerp(spores[j].y, spores[i].y, 0.01);
+        }
+      }
     }
   }
 
-  // Spore class to represent each individual spore's behavior
+  //class that defines what each spore is
   class Spore {
+    //set the spore's position
     constructor(x, y) {
       this.x = x;
       this.y = y;
+
+      //assigns a random colour from the palette
       this.color = p.color(
         p.random([255, 255, 0, 0]),
         p.random([255, 0, 255, 255]),
         p.random([0, 50, 200])
-      ); // Random color for spores
+      );
+
+      //set random angle and speed for future use
       this.angle = p.random(p.TWO_PI);
       this.speed = p.random(1, 3);
+
+      //add some Perlin noise offset for organic movement
       this.noiseOffsetX = p.random(1000);
       this.noiseOffsetY = p.random(1000);
     }
 
+    //set how the spore moves
     update() {
-      // Perlin noise-based movement to make it organic
       this.x += p.map(p.noise(this.noiseOffsetX), 0, 1, -2, 2);
       this.y += p.map(p.noise(this.noiseOffsetY), 0, 1, -2, 2);
-
-      // Update noise offsets
       this.noiseOffsetX += 0.01;
       this.noiseOffsetY += 0.01;
 
-      // Boundary logic: if outside canvas, rebound with friction
-      if (this.x > p.width + 5 || this.x < -5) {
-        this.x = p.constrain(this.x, 5, p.width - 5);
-        this.speed *= 0.95;
-      }
-      if (this.y > p.height + 5 || this.y < -5) {
-        this.y = p.constrain(this.y, 5, p.height - 5);
-        this.speed *= 0.95;
-      }
+      //keep them from going too far off screen
+      const margin = 50;
+      const correction = 0.5;
+      if (this.x < margin) this.x += correction;
+      if (this.x > p.width - margin) this.x -= correction;
+      if (this.y < margin) this.y += correction;
+      if (this.y > p.height - margin) this.y -= correction;
     }
 
+    //display spore according to what we set
     display() {
+      //no stroke
       p.noStroke();
+
+      //fill random colour
+      //based on the colour palette that we set
       p.fill(this.color);
-      p.ellipse(this.x, this.y, 10, 10); // Render spore
+
+      //set the position and size
+      p.ellipse(this.x, this.y, 10, 10);
     }
   }
 };
 
-// Pass the sketch in to a new p5 instance
+//launch the sketch
 new p5(sketch);
